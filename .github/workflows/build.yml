@@ -15,6 +15,12 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Render app icon
+        run: |
+          brew install librsvg
+          rsvg-convert -w 1024 -h 1024 -b '#2E1580' Icon/icon.svg \
+            -o App/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
