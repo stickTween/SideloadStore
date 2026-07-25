@@ -10,6 +10,7 @@ struct SideloadStoreApp: App {
             RootView()
                 .environmentObject(store)
                 .environmentObject(library)
+                .onOpenURL { url in library.importFile(url) }
         }
     }
 }
