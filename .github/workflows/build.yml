@@ -1,0 +1,42 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project SideloadStore.xcodeproj \
+            -scheme SideloadStore \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/SideloadStore.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO
+
+      - name: Package IPA
+        run: |
+          mkdir -p out/Payload
+          cp -R build/SideloadStore.xcarchive/Products/Applications/SideloadStore.app out/Payload/
+          cd out && zip -qry SideloadStore.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SideloadStore-ipa
+          path: out/SideloadStore.ipa
