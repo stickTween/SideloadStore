@@ -1,15 +1,21 @@
 import SwiftUI
-import UniformTypeIdentifiers
+
+enum LibrarySheet: Identifiable {
+    case importer
+    case share(URL)
+
+    var id: String {
+        switch self {
+        case .importer: return "importer"
+        case .share(let url): return url.path
+        }
+    }
+}
 
 struct LibraryView: View {
     @EnvironmentObject private var library: Library
-    @State private var importing = false
-    @State private var shareItem: URL?
+    @State private var sheet: LibrarySheet?
     @State private var installTarget: LocalPackage?
-
-    private var allowedTypes: [UTType] {
-        [UTType(filenameExtension: "ipa"), .zip, .archive, .data].compactMap { $0 }
-    }
 
     var body: some View {
         NavigationStack {
@@ -33,7 +39,7 @@ struct LibraryView: View {
                                     library.delete(package)
                                 } label: { Label("Удалить", systemImage: "trash") }
                                 Button {
-                                    shareItem = package.url
+                                    sheet = .share(package.url)
                                 } label: { Label("Поделиться", systemImage: "square.and.arrow.up") }
                             }
                         }
@@ -43,26 +49,20 @@ struct LibraryView: View {
             .navigationTitle("Библиотека")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { importing = true } label: { Image(systemName: "square.and.arrow.down") }
+                    Button { sheet = .importer } label: { Image(systemName: "square.and.arrow.down") }
                 }
             }
-            .fileImporter(isPresented: $importing,
-                          allowedContentTypes: allowedTypes,
-                          allowsMultipleSelection: false) { result in
-                switch result {
-                case .success(let urls):
-                    if let url = urls.first { library.importFile(url) }
-                case .failure(let error):
-                    library.errorMessage = error.localizedDescription
+            .sheet(item: $sheet) { route in
+                switch route {
+                case .importer:
+                    DocumentPicker { url in
+                        library.importFile(url)
+                        sheet = nil
+                    }
+                    .ignoresSafeArea()
+                case .share(let url):
+                    ShareSheet(url: url)
                 }
-            }
-            .alert("Ошибка", isPresented: Binding(
-                get: { library.errorMessage != nil },
-                set: { if !$0 { library.errorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) { library.errorMessage = nil }
-            } message: {
-                Text(library.errorMessage ?? "")
             }
             .confirmationDialog("Установить через", isPresented: Binding(
                 get: { installTarget != nil },
@@ -77,24 +77,23 @@ struct LibraryView: View {
                     }
                 }
                 Button("Открыть в…") {
-                    shareItem = installTarget?.url
-                    installTarget = nil
+                    if let package = installTarget {
+                        installTarget = nil
+                        sheet = .share(package.url)
+                    }
                 }
                 Button("Отмена", role: .cancel) { installTarget = nil }
             }
-            .sheet(item: Binding(
-                get: { shareItem.map { ShareBox(url: $0) } },
-                set: { shareItem = $0?.url }
-            )) { box in
-                ShareSheet(url: box.url)
+            .alert("Ошибка", isPresented: Binding(
+                get: { library.errorMessage != nil },
+                set: { if !$0 { library.errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { library.errorMessage = nil }
+            } message: {
+                Text(library.errorMessage ?? "")
             }
         }
     }
-}
-
-struct ShareBox: Identifiable {
-    var url: URL
-    var id: String { url.path }
 }
 
 struct ShareSheet: UIViewControllerRepresentable {
