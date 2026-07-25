@@ -7,8 +7,8 @@ struct LibraryView: View {
     @State private var shareItem: URL?
     @State private var installTarget: LocalPackage?
 
-    private var ipaType: UTType {
-        UTType(filenameExtension: "ipa") ?? .data
+    private var allowedTypes: [UTType] {
+        [UTType(filenameExtension: "ipa"), .zip, .archive, .data].compactMap { $0 }
     }
 
     var body: some View {
@@ -47,11 +47,22 @@ struct LibraryView: View {
                 }
             }
             .fileImporter(isPresented: $importing,
-                          allowedContentTypes: [ipaType],
+                          allowedContentTypes: allowedTypes,
                           allowsMultipleSelection: false) { result in
-                if case .success(let urls) = result, let url = urls.first {
-                    library.importFile(url)
+                switch result {
+                case .success(let urls):
+                    if let url = urls.first { library.importFile(url) }
+                case .failure(let error):
+                    library.errorMessage = error.localizedDescription
                 }
+            }
+            .alert("Ошибка", isPresented: Binding(
+                get: { library.errorMessage != nil },
+                set: { if !$0 { library.errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { library.errorMessage = nil }
+            } message: {
+                Text(library.errorMessage ?? "")
             }
             .confirmationDialog("Установить через", isPresented: Binding(
                 get: { installTarget != nil },
